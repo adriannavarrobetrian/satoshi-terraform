@@ -19,30 +19,53 @@ resource "random_string" "bucket_suffix" {
 }
 
 
+# resource "aws_s3_bucket_policy" "website_bucket_policy" {
+#   bucket = module.s3_bucket.s3_bucket_id
+
+#   policy = <<-EOT
+#   {
+#           "Version": "2008-10-17",
+#           "Id": "PolicyForCloudFrontPrivateContent",
+#           "Statement": [
+#               {
+#                   "Sid": "AllowCloudFrontServicePrincipal",
+#                   "Effect": "Allow",
+#                   "Principal": {
+#                       "Service": "cloudfront.amazonaws.com"
+#                   },
+#                   "Action": "s3:GetObject",
+#                   "Resource": "arn:aws:s3:::${module.s3_bucket.s3_bucket_id}/*",
+#                   "Condition": {
+#                       "StringEquals": {
+#                         "AWS:SourceArn": "${module.cdn.cloudfront_distribution_arn}"
+#                       }
+#                   }
+#               }
+#           ]
+#         }
+#   EOT
+# }
+
+
 resource "aws_s3_bucket_policy" "website_bucket_policy" {
   bucket = module.s3_bucket.s3_bucket_id
 
   policy = <<-EOT
   {
-          "Version": "2008-10-17",
-          "Id": "PolicyForCloudFrontPrivateContent",
-          "Statement": [
-              {
-                  "Sid": "AllowCloudFrontServicePrincipal",
-                  "Effect": "Allow",
-                  "Principal": {
-                      "Service": "cloudfront.amazonaws.com"
-                  },
-                  "Action": "s3:GetObject",
-                  "Resource": "arn:aws:s3:::${module.s3_bucket.s3_bucket_id}/*",
-                  "Condition": {
-                      "StringEquals": {
-                        "AWS:SourceArn": "${module.cdn.cloudfront_distribution_arn}"
-                      }
-                  }
-              }
-          ]
-        }
+      "Version": "2008-10-17",
+      "Id": "PolicyForCloudFrontPrivateContent",
+      "Statement": [
+          {
+              "Sid": "1",
+              "Effect": "Allow",
+              "Principal": {
+                  "AWS": "${module.cdn.cloudfront_origin_access_identities.s3_bucket_one.iam_arn}"
+              },
+              "Action": "s3:GetObject",
+              "Resource": "arn:aws:s3:::${module.s3_bucket.s3_bucket_id}/*"
+          }
+      ]
+  }  
   EOT
 }
 
@@ -60,7 +83,7 @@ module "cdn" {
 
   create_origin_access_identity = true
   origin_access_identities = {
-    s3_bucket_one = "My awesome CloudFront can access"
+    s3_bucket_one = "origin_access_identity"
   }
 
   # logging_config = {
