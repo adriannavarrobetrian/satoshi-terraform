@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 module "s3_bucket" {
   source = "terraform-aws-modules/s3-bucket/aws"
 
@@ -19,54 +21,62 @@ resource "random_string" "bucket_suffix" {
 }
 
 
-# resource "aws_s3_bucket_policy" "website_bucket_policy" {
-#   bucket = module.s3_bucket.s3_bucket_id
-
-#   policy = <<-EOT
-#   {
-#           "Version": "2008-10-17",
-#           "Id": "PolicyForCloudFrontPrivateContent",
-#           "Statement": [
-#               {
-#                   "Sid": "AllowCloudFrontServicePrincipal",
-#                   "Effect": "Allow",
-#                   "Principal": {
-#                       "Service": "cloudfront.amazonaws.com"
-#                   },
-#                   "Action": "s3:GetObject",
-#                   "Resource": "arn:aws:s3:::${module.s3_bucket.s3_bucket_id}/*",
-#                   "Condition": {
-#                       "StringEquals": {
-#                         "AWS:SourceArn": "${module.cdn.cloudfront_distribution_arn}"
-#                       }
-#                   }
-#               }
-#           ]
-#         }
-#   EOT
-# }
-
-
 resource "aws_s3_bucket_policy" "website_bucket_policy" {
   bucket = module.s3_bucket.s3_bucket_id
 
   policy = <<-EOT
   {
-      "Version": "2008-10-17",
-      "Id": "PolicyForCloudFrontPrivateContent",
-      "Statement": [
-          {
-              "Sid": "1",
-              "Effect": "Allow",
-              "Principal": {
-                  "AWS": "${module.cdn.cloudfront_origin_access_identities.s3_bucket_one.iam_arn}"
-              },
-              "Action": "s3:GetObject",
-              "Resource": "arn:aws:s3:::${module.s3_bucket.s3_bucket_id}/*"
-          }
-      ]
-  }  
+          "Version": "2008-10-17",
+          "Id": "PolicyForCloudFrontPrivateContent",
+          "Statement": [
+              {
+                  "Sid": "AllowCloudFrontServicePrincipal",
+                  "Effect": "Allow",
+                  "Principal": {
+                      "Service": "cloudfront.amazonaws.com"
+                  },
+                  "Action": "s3:GetObject",
+                  "Resource": "arn:aws:s3:::${module.s3_bucket.s3_bucket_id}/*",
+                  "Condition": {
+                      "StringEquals": {
+                        "AWS:SourceArn": "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${aws_cloudfront_origin_access_control.default.id}"
+                      }
+                  }
+              }
+          ]
+        }
   EOT
+}
+
+
+# resource "aws_s3_bucket_policy" "website_bucket_policy" {
+#   bucket = module.s3_bucket.s3_bucket_id
+
+#   policy = <<-EOT
+#   {
+#       "Version": "2008-10-17",
+#       "Id": "PolicyForCloudFrontPrivateContent",
+#       "Statement": [
+#           {
+#               "Sid": "1",
+#               "Effect": "Allow",
+#               "Principal": {
+#                   "AWS": "${module.cdn.cloudfront_origin_access_identities.s3_bucket_one.iam_arn}"
+#               },
+#               "Action": "s3:GetObject",
+#               "Resource": "arn:aws:s3:::${module.s3_bucket.s3_bucket_id}/*"
+#           }
+#       ]
+#   }  
+#   EOT
+# }
+
+resource "aws_cloudfront_origin_access_control" "default" {
+  name                              = "origin_access_control"
+  description                       = "origin_access_control"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
 }
 
 module "cdn" {
@@ -93,9 +103,16 @@ module "cdn" {
   origin = {
     auth = {
       domain_name = module.s3_bucket.s3_bucket_bucket_regional_domain_name
-      s3_origin_config = {
-        origin_access_identity = "s3_bucket_one"
-      }
+      origin_access_control_id = aws_cloudfront_origin_access_control.default.id
+      # origin_id                = module.s3_bucket.s3_bucket_id
+      # origin_path              = "/"
+      # origin_protocol_policy   = "http-only"
+      # origin_ssl_protocols     = ["TLSv1", "TLSv1.1", "TLSv1.2"]
+      # origin_read_timeout      = 3
+
+      # s3_origin_config = {
+      #   origin_access_identity = "s3_bucket_one"
+      # }
       # custom_origin_config = {
       #   http_port              = 80
       #   https_port             = 443
