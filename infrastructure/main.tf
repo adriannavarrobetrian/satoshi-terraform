@@ -39,44 +39,13 @@ resource "aws_s3_bucket_policy" "website_bucket_policy" {
                   "Resource": "arn:aws:s3:::${module.s3_bucket.s3_bucket_id}/*",
                   "Condition": {
                       "StringEquals": {
-                        "AWS:SourceArn": "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${aws_cloudfront_origin_access_control.default.id}"
+                        "AWS:SourceArn": "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${module.cdn.cloudfront_distribution_id}"
                       }
                   }
               }
           ]
         }
   EOT
-}
-
-
-# resource "aws_s3_bucket_policy" "website_bucket_policy" {
-#   bucket = module.s3_bucket.s3_bucket_id
-
-#   policy = <<-EOT
-#   {
-#       "Version": "2008-10-17",
-#       "Id": "PolicyForCloudFrontPrivateContent",
-#       "Statement": [
-#           {
-#               "Sid": "1",
-#               "Effect": "Allow",
-#               "Principal": {
-#                   "AWS": "${module.cdn.cloudfront_origin_access_identities.s3_bucket_one.iam_arn}"
-#               },
-#               "Action": "s3:GetObject",
-#               "Resource": "arn:aws:s3:::${module.s3_bucket.s3_bucket_id}/*"
-#           }
-#       ]
-#   }  
-#   EOT
-# }
-
-resource "aws_cloudfront_origin_access_control" "default" {
-  name                              = "origin_access_control"
-  description                       = "origin_access_control"
-  origin_access_control_origin_type = "s3"
-  signing_behavior                  = "always"
-  signing_protocol                  = "sigv4"
 }
 
 module "cdn" {
@@ -91,10 +60,15 @@ module "cdn" {
   retain_on_delete    = false
   wait_for_deployment = false
 
-  create_origin_access_identity = true
-  origin_access_identities = {
-    s3_bucket_one = "origin_access_identity"
+  create_origin_access_control = true
+  origin_access_control = {
+  s3_oac = {
+    description      = "CloudFront access to S3"
+    origin_type      = "s3"
+    signing_behavior = "always"
+    signing_protocol = "sigv4"
   }
+}
 
   # logging_config = {
   #   bucket = "logs-my-cdn.s3.amazonaws.com"
@@ -103,7 +77,9 @@ module "cdn" {
   origin = {
     auth = {
       domain_name = module.s3_bucket.s3_bucket_bucket_regional_domain_name
-      origin_access_control_id = aws_cloudfront_origin_access_control.default.id
+#      origin_access_control_id = aws_cloudfront_origin_access_control.default.id
+      origin_access_control = "s3_oac" # key in `origin_access_control`
+
       # origin_id                = module.s3_bucket.s3_bucket_id
       # origin_path              = "/"
       # origin_protocol_policy   = "http-only"
