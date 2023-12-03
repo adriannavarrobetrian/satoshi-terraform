@@ -78,15 +78,6 @@ module "cloudfront_log_bucket" {
   control_object_ownership = true
   object_ownership         = "ObjectWriter"
 
-  server_side_encryption_configuration = {
-    rule = {
-      apply_server_side_encryption_by_default = {
-        kms_master_key_id = aws_kms_key.objects.arn
-        sse_algorithm     = "aws:kms"
-      }
-    }
-  }
-
   grant = [{
     type       = "CanonicalUser"
     permission = "FULL_CONTROL"
@@ -94,7 +85,7 @@ module "cloudfront_log_bucket" {
     }, {
     type       = "CanonicalUser"
     permission = "FULL_CONTROL"
-    id         = data.aws_cloudfront_log_delivery_canonical_user_id.cloudfront.id 
+    id         = data.aws_cloudfront_log_delivery_canonical_user_id.cloudfront.id # Ref. https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/AccessLogs.html
     }
   ]
 
@@ -103,9 +94,7 @@ module "cloudfront_log_bucket" {
   }
 
   force_destroy = true
-  versioning = {
-    enabled = true
-  }
+
   tags = {
     Owner = "Satoshi"
   }
@@ -149,7 +138,7 @@ module "cdn" {
   default_root_object = "index.html"
   default_cache_behavior = {
     target_origin_id       = "auth"
-    viewer_protocol_policy = "redirect-to-https"
+    viewer_protocol_policy = "allow-all"
 
     allowed_methods = ["GET", "HEAD", "OPTIONS"]
     cached_methods  = ["GET", "HEAD"]
