@@ -1,51 +1,114 @@
+locals {
+  bucket_name     = "${var.bucket_origin}-${random_string.this.id}"
+  bucket_log_name = "${var.bucket_origin}-log-${random_string.this.id}"
+  region          = "eu-west-1"
+}
+
 data "aws_caller_identity" "current" {}
 
-module "s3_bucket" {
-  source = "terraform-aws-modules/s3-bucket/aws"
+data "aws_canonical_user_id" "current" {}
 
-  bucket = "${random_string.bucket_suffix.result}-${var.bucket_origin}"
-  acl    = "private"
+data "aws_cloudfront_log_delivery_canonical_user_id" "cloudfront" {}
 
-  control_object_ownership = true
-  object_ownership         = "ObjectWriter"
+data "aws_iam_policy_document" "policy" {
+  statement {
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
 
-  versioning = {
-    enabled = false
+    actions = [
+      "s3:GetObject",
+    ]
+
+    resources = [
+      "arn:aws:s3:::${local.bucket_name}/*",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+
+      values = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${module.cdn.cloudfront_distribution_id}"]
+    }
   }
 }
 
-resource "random_string" "bucket_suffix" {
+resource "random_string" "this" {
   length  = 8
   special = false
   upper   = false
 }
 
+resource "aws_kms_key" "objects" {
+  description             = "KMS key is used to encrypt bucket objects"
+  enable_key_rotation = true
+  deletion_window_in_days = 7
+}
 
-resource "aws_s3_bucket_policy" "website_bucket_policy" {
-  bucket = module.s3_bucket.s3_bucket_id
+module "s3_bucket" {
+  source = "terraform-aws-modules/s3-bucket/aws"
 
-  policy = <<-EOT
-  {
-          "Version": "2008-10-17",
-          "Id": "PolicyForCloudFrontPrivateContent",
-          "Statement": [
-              {
-                  "Sid": "AllowCloudFrontServicePrincipal",
-                  "Effect": "Allow",
-                  "Principal": {
-                      "Service": "cloudfront.amazonaws.com"
-                  },
-                  "Action": "s3:GetObject",
-                  "Resource": "arn:aws:s3:::${module.s3_bucket.s3_bucket_id}/*",
-                  "Condition": {
-                      "StringEquals": {
-                        "AWS:SourceArn": "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${module.cdn.cloudfront_distribution_id}"
-                      }
-                  }
-              }
-          ]
-        }
-  EOT
+  bucket = local.bucket_name
+  acl    = "private"
+
+  server_side_encryption_configuration = {
+    rule = {
+      apply_server_side_encryption_by_default = {
+        kms_master_key_id = aws_kms_key.objects.arn
+        sse_algorithm     = "aws:kms"
+      }
+    }
+  }
+
+  control_object_ownership = true
+  object_ownership         = "ObjectWriter"
+  attach_policy            = true
+  policy                   = data.aws_iam_policy_document.policy.json
+  versioning = {
+    enabled = true
+  }
+  tags = {
+    Owner = "Satoshi"
+  }
+}
+module "cloudfront_log_bucket" {
+  source = "terraform-aws-modules/s3-bucket/aws"
+
+  bucket                   = local.bucket_log_name
+  control_object_ownership = true
+  object_ownership         = "ObjectWriter"
+
+  server_side_encryption_configuration = {
+    rule = {
+      apply_server_side_encryption_by_default = {
+        kms_master_key_id = aws_kms_key.objects.arn
+        sse_algorithm     = "aws:kms"
+      }
+    }
+  }
+
+  grant = [{
+    type       = "CanonicalUser"
+    permission = "FULL_CONTROL"
+    id         = data.aws_canonical_user_id.current.id
+    }, {
+    type       = "CanonicalUser"
+    permission = "FULL_CONTROL"
+    id         = data.aws_cloudfront_log_delivery_canonical_user_id.cloudfront.id 
+    }
+  ]
+
+  owner = {
+    id = data.aws_canonical_user_id.current.id
+  }
+
+  force_destroy = true
+  versioning = {
+    enabled = true
+  }
+  tags = {
+    Owner = "Satoshi"
+  }
 }
 
 module "cdn" {
@@ -62,52 +125,31 @@ module "cdn" {
 
   create_origin_access_control = true
   origin_access_control = {
-  s3_oac = {
-    description      = "CloudFront access to S3"
-    origin_type      = "s3"
-    signing_behavior = "always"
-    signing_protocol = "sigv4"
+    auth = {
+      description      = "CloudFront access to S3"
+      origin_type      = "s3"
+      signing_behavior = "always"
+      signing_protocol = "sigv4"
+    }
   }
-}
 
-  # logging_config = {
-  #   bucket = "logs-my-cdn.s3.amazonaws.com"
-  # }
+  logging_config = {
+    bucket = module.cloudfront_log_bucket.s3_bucket_bucket_domain_name
+  }
 
   origin = {
-    auth = {
-      domain_name = module.s3_bucket.s3_bucket_bucket_regional_domain_name
-#      origin_access_control_id = aws_cloudfront_origin_access_control.default.id
-      origin_access_control = "s3_oac" # key in `origin_access_control`
 
-      # origin_id                = module.s3_bucket.s3_bucket_id
-      # origin_path              = "/"
-      # origin_protocol_policy   = "http-only"
-      # origin_ssl_protocols     = ["TLSv1", "TLSv1.1", "TLSv1.2"]
-      # origin_read_timeout      = 3
 
-      # s3_origin_config = {
-      #   origin_access_identity = "s3_bucket_one"
-      # }
-      # custom_origin_config = {
-      #   http_port              = 80
-      #   https_port             = 443
-      #   origin_protocol_policy = "match-viewer"
-      #   origin_ssl_protocols   = ["TLSv1", "TLSv1.1", "TLSv1.2"]
-      # }
+    auth = { # with origin access control settings (recommended)
+      domain_name           = module.s3_bucket.s3_bucket_bucket_regional_domain_name
+      origin_access_control = "auth" # key in `origin_access_control`
     }
 
-    # s3_one = {
-    #   domain_name = "my-s3-bycket.s3.amazonaws.com"
-    #   s3_origin_config = {
-    #     origin_access_identity = "s3_bucket_one"
-    #   }
-    # }
   }
-
+  default_root_object = "index.html"
   default_cache_behavior = {
-    target_origin_id           = "auth"
-    viewer_protocol_policy     = "allow-all"
+    target_origin_id       = "auth"
+    viewer_protocol_policy = "redirect-to-https"
 
     allowed_methods = ["GET", "HEAD", "OPTIONS"]
     cached_methods  = ["GET", "HEAD"]
@@ -115,16 +157,7 @@ module "cdn" {
     query_string    = true
   }
 
-  ordered_cache_behavior = [
-    {
-      path_pattern           = "/static/*"
-      target_origin_id       = "auth"
-      viewer_protocol_policy = "redirect-to-https"
-
-      allowed_methods = ["GET", "HEAD", "OPTIONS"]
-      cached_methods  = ["GET", "HEAD"]
-      compress        = true
-      query_string    = true
-    }
-  ]
+  tags = {
+    Owner = "Satoshi"
+  }
 }
