@@ -114,7 +114,7 @@ module "cdn" {
 
   create_origin_access_control = true
   origin_access_control = {
-    auth = {
+    oac = {
       description      = "CloudFront access to S3"
       origin_type      = "s3"
       signing_behavior = "always"
@@ -129,15 +129,15 @@ module "cdn" {
   origin = {
 
 
-    auth = { # with origin access control settings (recommended)
+    originid = { # with origin access control settings (recommended)
       domain_name           = module.s3_bucket.s3_bucket_bucket_regional_domain_name
-      origin_access_control = "auth" # key in `origin_access_control`
+      origin_access_control = "oac" # key in `origin_access_control`
     }
 
   }
   default_root_object = "index.html"
   default_cache_behavior = {
-    target_origin_id       = "auth"
+    target_origin_id       = "originid"
     viewer_protocol_policy = "allow-all"
 
     allowed_methods = ["GET", "HEAD", "OPTIONS"]
