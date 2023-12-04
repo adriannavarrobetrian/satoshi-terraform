@@ -143,8 +143,8 @@ module "cdn" {
   default_root_object = "index.html"
   default_cache_behavior = {
     target_origin_id       = "originid"
-    viewer_protocol_policy = "allow-all"
-    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD"]
     cached_methods         = ["GET", "HEAD"]
     compress               = true
     query_string           = true
