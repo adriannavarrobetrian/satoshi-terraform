@@ -57,9 +57,10 @@ module "s3_bucket" {
   }
   force_destroy = true
 
-  tags = {
-    Owner = "Satoshi"
-  }
+  tags = merge(var.default_tags, {
+    OWNER = "Satoshi"
+    }
+  )
 }
 module "cloudfront_log_bucket" {
   for_each = local.endpoints
@@ -88,9 +89,10 @@ module "cloudfront_log_bucket" {
   versioning = {
     enabled = true
   }
-  tags = {
-    Owner = "Satoshi"
-  }
+  tags = merge(var.default_tags, {
+    OWNER = "Satoshi"
+    }
+  )
 }
 
 module "cdn" {
@@ -138,7 +140,8 @@ module "cdn" {
     query_string           = true
   }
 
-  tags = {
-    Owner = "Satoshi"
-  }
+  tags = merge(var.default_tags, {
+    OWNER = "Satoshi"
+    }
+  )
 }

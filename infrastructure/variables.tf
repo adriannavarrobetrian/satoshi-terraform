@@ -7,7 +7,6 @@ variable "environment" {
   type        = string
 }
 
-# variable "endpoints" {
-#   type    = set(string)
-#   default = ["auth", "info", "customers"]
-# }
+variable "default_tags" {
+  default = " "
+}
