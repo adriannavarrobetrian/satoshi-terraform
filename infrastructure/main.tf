@@ -1,8 +1,7 @@
 locals {
-  bucket_name     = "${var.bucket_origin}-${random_string.this.id}"
-  bucket_log_name = "${var.bucket_origin}-log-${random_string.this.id}"
+  bucket_name     = "${var.bucket_origin}-${var.environment}-${random_string.this.id}"
+  bucket_log_name = "${var.bucket_origin}-${var.environment}-log-${random_string.this.id}"
   endpoints = toset(["auth","info","customers"])
-  region          = "eu-west-1"
 }
 
 data "aws_caller_identity" "current" {}
