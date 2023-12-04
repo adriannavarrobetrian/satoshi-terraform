@@ -3,12 +3,7 @@ variable "bucket_origin" {
   type        = string
 }
 
-variable "bucket_origin2" {
-  description = "Origin Bucket"
-  type        = string
-}
-
-variable "bucket_origin3" {
-  description = "Origin Bucket"
-  type        = string
-}
+# variable "endpoints" {
+#   type    = set(string)
+#   default = ["auth", "info", "customers"]
+# }

@@ -1,6 +1,7 @@
 locals {
   bucket_name     = "${var.bucket_origin}-${random_string.this.id}"
   bucket_log_name = "${var.bucket_origin}-log-${random_string.this.id}"
+  endpoints = toset(["auth","info","customers"])
   region          = "eu-west-1"
 }
 
@@ -9,61 +10,49 @@ data "aws_caller_identity" "current" {}
 data "aws_canonical_user_id" "current" {}
 
 data "aws_cloudfront_log_delivery_canonical_user_id" "cloudfront" {}
-
-data "aws_iam_policy_document" "policy" {
-  statement {
-    principals {
-      type        = "Service"
-      identifiers = ["cloudfront.amazonaws.com"]
-    }
-
-    actions = [
-      "s3:GetObject",
-    ]
-
-    resources = [
-      "arn:aws:s3:::${local.bucket_name}/*",
-    ]
-    condition {
-      test     = "StringEquals"
-      variable = "AWS:SourceArn"
-
-      values = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${module.cdn.cloudfront_distribution_id}"]
-    }
-  }
-}
-
 resource "random_string" "this" {
   length  = 8
   special = false
   upper   = false
 }
 
-resource "aws_kms_key" "objects" {
-  description             = "KMS key is used to encrypt bucket objects"
-  enable_key_rotation = true
-  deletion_window_in_days = 7
+resource "aws_s3_bucket_policy" "website_bucket_policy" {
+  for_each = local.endpoints
+  bucket = module.s3_bucket["${each.key}"].s3_bucket_id
+
+  policy = <<-EOT
+  {
+          "Version": "2008-10-17",
+          "Id": "PolicyForCloudFrontPrivateContent",
+          "Statement": [
+              {
+                  "Sid": "AllowCloudFrontServicePrincipal",
+                  "Effect": "Allow",
+                  "Principal": {
+                      "Service": "cloudfront.amazonaws.com"
+                  },
+                  "Action": "s3:GetObject",
+                  "Resource": "arn:aws:s3:::${module.s3_bucket["${each.key}"].s3_bucket_id}/*",
+                  "Condition": {
+                      "StringEquals": {
+                        "AWS:SourceArn": "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${module.cdn["${each.key}"].cloudfront_distribution_id}"
+                      }
+                  }
+              }
+          ]
+        }
+  EOT
 }
 
 module "s3_bucket" {
-  source = "terraform-aws-modules/s3-bucket/aws"
+  for_each = local.endpoints
+  source   = "terraform-aws-modules/s3-bucket/aws"
 
-  bucket = local.bucket_name
+  bucket = "${local.bucket_name}-${each.key}"
   acl    = "private"
-
-  server_side_encryption_configuration = {
-    rule = {
-      apply_server_side_encryption_by_default = {
-        kms_master_key_id = aws_kms_key.objects.arn
-        sse_algorithm     = "aws:kms"
-      }
-    }
-  }
 
   control_object_ownership = true
   object_ownership         = "ObjectWriter"
-  attach_policy            = true
-  policy                   = data.aws_iam_policy_document.policy.json
   versioning = {
     enabled = true
   }
@@ -72,9 +61,10 @@ module "s3_bucket" {
   }
 }
 module "cloudfront_log_bucket" {
-  source = "terraform-aws-modules/s3-bucket/aws"
+  for_each = local.endpoints
+  source   = "terraform-aws-modules/s3-bucket/aws"
 
-  bucket                   = local.bucket_log_name
+  bucket                   = "${local.bucket_log_name}-${each.key}"
   control_object_ownership = true
   object_ownership         = "ObjectWriter"
 
@@ -94,13 +84,16 @@ module "cloudfront_log_bucket" {
   }
 
   force_destroy = true
-
+  versioning = {
+    enabled = true
+  }
   tags = {
     Owner = "Satoshi"
   }
 }
 
 module "cdn" {
+  for_each = local.endpoints
   source = "terraform-aws-modules/cloudfront/aws"
 
   #aliases = ["cdn.example.com"]
@@ -114,7 +107,7 @@ module "cdn" {
 
   create_origin_access_control = true
   origin_access_control = {
-    oac = {
+    "${each.key}" = {
       description      = "CloudFront access to S3"
       origin_type      = "s3"
       signing_behavior = "always"
@@ -123,23 +116,25 @@ module "cdn" {
   }
 
   logging_config = {
-    bucket = module.cloudfront_log_bucket.s3_bucket_bucket_domain_name
+    bucket = module.cloudfront_log_bucket["${each.key}"].s3_bucket_bucket_domain_name
   }
 
   origin = {
 
+  
 
     originid = { # with origin access control settings (recommended)
-      domain_name           = module.s3_bucket.s3_bucket_bucket_regional_domain_name
-      origin_access_control = "oac" # key in `origin_access_control`
+      domain_name           = module.s3_bucket["${each.key}"].s3_bucket_bucket_regional_domain_name
+      origin_access_control = "${each.key}" # key in `origin_access_control`
+      origin_path            = "/${each.key}"
     }
 
   }
   default_root_object = "index.html"
+  
   default_cache_behavior = {
     target_origin_id       = "originid"
     viewer_protocol_policy = "allow-all"
-
     allowed_methods = ["GET", "HEAD", "OPTIONS"]
     cached_methods  = ["GET", "HEAD"]
     compress        = true
