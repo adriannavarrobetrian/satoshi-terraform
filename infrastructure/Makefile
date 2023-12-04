@@ -38,7 +38,7 @@ aws_region = "eu-west-1"
 init:
 	@terraform init -reconfigure \
  			-var-file=../env/${ENV}/variables.tfvars \
- 			-backend-config=bucket=terraform-state-satoshi-${ENV} \
+ 			-backend-config=bucket=satoshi-terraform-state-${ENV} \
  			-backend-config=key=${ENV}/terraform.tfstate \
 			-backend-config=region=${aws_region} \
  			-backend=true 
