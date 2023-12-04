@@ -1,1 +1,1 @@
-bucket_origin  = "satoshi"
+bucket_origin = "satoshi"

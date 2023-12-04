@@ -1,7 +1,7 @@
 locals {
   bucket_name     = "${var.bucket_origin}-${var.environment}-${random_string.this.id}"
   bucket_log_name = "${var.bucket_origin}-${var.environment}-log-${random_string.this.id}"
-  endpoints = toset(["auth","info","customers"])
+  endpoints       = toset(["auth", "info", "customers"])
 }
 
 data "aws_caller_identity" "current" {}
@@ -17,7 +17,7 @@ resource "random_string" "this" {
 
 resource "aws_s3_bucket_policy" "website_bucket_policy" {
   for_each = local.endpoints
-  bucket = module.s3_bucket["${each.key}"].s3_bucket_id
+  bucket   = module.s3_bucket["${each.key}"].s3_bucket_id
 
   policy = <<-EOT
   {
@@ -55,6 +55,8 @@ module "s3_bucket" {
   versioning = {
     enabled = true
   }
+  force_destroy = true
+
   tags = {
     Owner = "Satoshi"
   }
@@ -93,11 +95,11 @@ module "cloudfront_log_bucket" {
 
 module "cdn" {
   for_each = local.endpoints
-  source = "terraform-aws-modules/cloudfront/aws"
+  source   = "terraform-aws-modules/cloudfront/aws"
 
   #aliases = ["cdn.example.com"]
 
-  comment             = "Satoshi CloudFront"
+  comment             = "CloudFront ${each.key}"
   enabled             = true
   is_ipv6_enabled     = true
   price_class         = "PriceClass_All"
@@ -107,7 +109,7 @@ module "cdn" {
   create_origin_access_control = true
   origin_access_control = {
     "${each.key}" = {
-      description      = "CloudFront access to S3"
+      description      = "CloudFront ${each.key} access to S3"
       origin_type      = "s3"
       signing_behavior = "always"
       signing_protocol = "sigv4"
@@ -119,25 +121,21 @@ module "cdn" {
   }
 
   origin = {
-
-  
-
-    originid = { # with origin access control settings (recommended)
+    originid = {
       domain_name           = module.s3_bucket["${each.key}"].s3_bucket_bucket_regional_domain_name
       origin_access_control = "${each.key}" # key in `origin_access_control`
-      origin_path            = "/${each.key}"
+      origin_path           = "/${each.key}"
     }
 
   }
   default_root_object = "index.html"
-  
   default_cache_behavior = {
     target_origin_id       = "originid"
     viewer_protocol_policy = "allow-all"
-    allowed_methods = ["GET", "HEAD", "OPTIONS"]
-    cached_methods  = ["GET", "HEAD"]
-    compress        = true
-    query_string    = true
+    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
+    cached_methods         = ["GET", "HEAD"]
+    compress               = true
+    query_string           = true
   }
 
   tags = {
