@@ -43,6 +43,15 @@ resource "aws_s3_bucket_policy" "website_bucket_policy" {
   EOT
 }
 
+resource "aws_s3_object" "object" {
+  for_each = local.endpoints
+  bucket = module.s3_bucket["${each.key}"].s3_bucket_id
+
+  key    = "${each.key}/index.html"
+  source = "index.html"
+  content_type = "text/html"
+}
+
 module "s3_bucket" {
   for_each = local.endpoints
   source   = "terraform-aws-modules/s3-bucket/aws"
