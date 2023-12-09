@@ -12,7 +12,7 @@ resource "aws_dynamodb_table" "terraform-lock" {
   }
   server_side_encryption {
     enabled     = true
-    kms_key_arn = aws_kms_key.dynamo_db_kms.key_id
+    kms_key_arn = aws_kms_key.dynamo_db_kms.arn
 
   }
   attribute {

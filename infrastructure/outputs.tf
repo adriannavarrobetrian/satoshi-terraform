@@ -1,15 +1,9 @@
-# output "s3_bucket_id" {
-#   description = "The name of the bucket."
-#   value       = module.s3_bucket.s3_bucket_id[0]
-# }
+output "cloudfront_distribution_domain_name" {
+  description = "The domain name corresponding to the distribution."
+  value       = module.cdn["auth"].cloudfront_distribution_domain_name
+}
 
-
-# # output "cloudfront_origin_access_identities" {
-# #   description = "cloudfront_origin_access_identities."
-# #   value       = module.cdn.cloudfront_origin_access_identities.s3_bucket_one.iam_arn
-# # }
-
-# output "cloudfront_origin_access_controls" {
-#   description = "The origin access controls created"
-#   value       = module.cdn.cloudfront_origin_access_controls
-# }
+output "cloudfront_distribution_domain_names" {
+  description = "The domain name corresponding to the distribution."
+  value       = { for k, v in module.cdn : k => v.cloudfront_distribution_domain_name }
+}
