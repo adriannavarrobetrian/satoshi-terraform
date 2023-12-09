@@ -17,7 +17,7 @@ init:
  			-var-file=../env/${ENV}/variables.tfvars \
  			-backend-config=bucket=satoshi-terraform-state-${ENV} \
  			-backend-config=key=${ENV}/terraform.tfstate \
-			-backend-config=dynamodb_table="terraform_state" \
+			#-backend-config=dynamodb_table="terraform_state" \
  			-backend=true 
 
 plan:
@@ -40,6 +40,6 @@ dev: init plan apply
 staging: init plan apply
 prod: init plan apply
 
-dev-destroy: init plan destroy
-staging-destroy: init plan destroy
-prod-destroy: init plan destroy
+dev-destroy: init destroy
+staging-destroy: init destroy
+prod-destroy: init destroy
