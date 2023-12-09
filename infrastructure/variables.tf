@@ -7,6 +7,10 @@ variable "environment" {
   type        = string
 }
 
+variable "endpoints" {
+  type = list(string)
+}
+
 variable "default_tags" {
   default = " "
 }

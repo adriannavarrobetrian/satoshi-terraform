@@ -1,7 +1,7 @@
 locals {
   bucket_name     = "${var.bucket_origin}-${var.environment}-${random_string.this.id}"
   bucket_log_name = "${var.bucket_origin}-${var.environment}-log-${random_string.this.id}"
-  endpoints       = toset(["auth", "info", "customers"])
+  endpoints       = toset(var.endpoints)
 }
 
 data "aws_caller_identity" "current" {}
@@ -17,7 +17,7 @@ resource "random_string" "this" {
 
 resource "aws_s3_bucket_policy" "website_bucket_policy" {
   for_each = local.endpoints
-  bucket   = module.s3_bucket["${each.key}"].s3_bucket_id
+  bucket   = module.s3_bucket[each.key].s3_bucket_id
 
   policy = <<-EOT
   {
@@ -31,10 +31,10 @@ resource "aws_s3_bucket_policy" "website_bucket_policy" {
                       "Service": "cloudfront.amazonaws.com"
                   },
                   "Action": "s3:GetObject",
-                  "Resource": "arn:aws:s3:::${module.s3_bucket["${each.key}"].s3_bucket_id}/*",
+                  "Resource": "arn:aws:s3:::${module.s3_bucket[each.key].s3_bucket_id}/*",
                   "Condition": {
                       "StringEquals": {
-                        "AWS:SourceArn": "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${module.cdn["${each.key}"].cloudfront_distribution_id}"
+                        "AWS:SourceArn": "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${module.cdn[each.key].cloudfront_distribution_id}"
                       }
                   }
               }
@@ -45,17 +45,18 @@ resource "aws_s3_bucket_policy" "website_bucket_policy" {
 
 resource "aws_s3_object" "object" {
   for_each = local.endpoints
-  bucket = module.s3_bucket["${each.key}"].s3_bucket_id
+  bucket   = module.s3_bucket[each.key].s3_bucket_id
 
-  key    = "${each.key}/index.html"
-  source = "index.html"
+  key          = "${each.key}/index.html"
+  source       = "index.html"
   content_type = "text/html"
-  etag = filemd5("index.html")
+  etag         = filemd5("index.html")
 }
 
 module "s3_bucket" {
   for_each = local.endpoints
   source   = "terraform-aws-modules/s3-bucket/aws"
+  version  = "3.15.1"
 
   bucket = "${local.bucket_name}-${each.key}"
   acl    = "private"
@@ -75,6 +76,7 @@ module "s3_bucket" {
 module "cloudfront_log_bucket" {
   for_each = local.endpoints
   source   = "terraform-aws-modules/s3-bucket/aws"
+  version  = "3.15.1"
 
   bucket                   = "${local.bucket_log_name}-${each.key}"
   control_object_ownership = true
@@ -108,8 +110,7 @@ module "cloudfront_log_bucket" {
 module "cdn" {
   for_each = local.endpoints
   source   = "terraform-aws-modules/cloudfront/aws"
-
-  #aliases = ["cdn.example.com"]
+  version  = "3.2.1"
 
   comment             = "CloudFront ${each.key}"
   enabled             = true
@@ -129,12 +130,12 @@ module "cdn" {
   }
 
   logging_config = {
-    bucket = module.cloudfront_log_bucket["${each.key}"].s3_bucket_bucket_domain_name
+    bucket = module.cloudfront_log_bucket[each.key].s3_bucket_bucket_domain_name
   }
 
   origin = {
     originid = {
-      domain_name           = module.s3_bucket["${each.key}"].s3_bucket_bucket_regional_domain_name
+      domain_name           = module.s3_bucket[each.key].s3_bucket_bucket_regional_domain_name
       origin_access_control = "${each.key}" # key in `origin_access_control`
       origin_path           = "/${each.key}"
     }
