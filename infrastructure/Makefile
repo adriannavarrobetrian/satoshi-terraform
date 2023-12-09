@@ -21,7 +21,7 @@ init:
  			-backend=true 
 
 plan:
-	@terraform fmt && terraform plan \
+	@terraform fmt && tflint && tfsec && terraform plan \
 			-var-file=../env/${ENV}/variables.tfvars \
 			-var-file=./variables.tfvars
 apply:

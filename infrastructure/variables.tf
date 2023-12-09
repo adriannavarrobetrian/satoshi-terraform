@@ -11,6 +11,8 @@ variable "endpoints" {
   type = list(string)
 }
 
+
 variable "default_tags" {
-  default = " "
+  type    = map(string)
+  default = {}
 }

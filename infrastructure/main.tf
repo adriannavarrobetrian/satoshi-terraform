@@ -121,7 +121,7 @@ module "cdn" {
 
   create_origin_access_control = true
   origin_access_control = {
-    "${each.key}" = {
+    (each.key) = {
       description      = "CloudFront ${each.key} access to S3"
       origin_type      = "s3"
       signing_behavior = "always"
@@ -136,7 +136,7 @@ module "cdn" {
   origin = {
     originid = {
       domain_name           = module.s3_bucket[each.key].s3_bucket_bucket_regional_domain_name
-      origin_access_control = "${each.key}" # key in `origin_access_control`
+      origin_access_control = each.key # key in `origin_access_control`
       origin_path           = "/${each.key}"
     }
 
