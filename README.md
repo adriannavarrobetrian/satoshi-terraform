@@ -115,11 +115,14 @@ terraform apply -var-file=variables.tfvars
 
 ### Bullet points
 
-All bullet points for the version 1 are also applicable to this version.
-
+- terraform.tfstate is configured in a S3 bucket backend named satoshi-terraform-state-${ENV}.
+- All providers have versioning constraints.
+- In a bigger infrastructure, main.tf could be separated in more files, in this case I think it's easier to read with only one file.
+- Variables are for the folder specific environment.
+- Buckets are encrypted, private and version enabled.
 - In this version we have more code duplication than version 1. 
 - On the other hand, it's probably better discernible what code is for each environment. 
-- We could use Terragrunt in this version to avoid so much repetition of code.
+- We could use Terragrunt in this version to avoid code repetition.
 
 
 
