@@ -113,6 +113,8 @@ terraform apply -var-file=variables.tfvars
 # Accept changes
 ```
 
+### Bullet points
+
 All bullet points for the version 1 are also applicable to this version.
 
 - In this version we have more code duplication than version 1. 
