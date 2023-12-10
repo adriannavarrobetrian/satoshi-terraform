@@ -9,11 +9,17 @@ data "aws_caller_identity" "current" {}
 data "aws_canonical_user_id" "current" {}
 
 data "aws_cloudfront_log_delivery_canonical_user_id" "cloudfront" {}
-resource "random_string" "this" {
+resource "random_string" "this" { #used to randomize the name of the bucket
   length  = 8
   special = false
   upper   = false
 }
+
+# origin bucket needs a bucket policy to allow access to CloudFront distribution. The recommended way to do it nowadays is with Origin access identities.
+# We need to add the CloudFront distribution arn to the origin bucket policy
+
+# I use a for_each meta-argument to create the buckets and cloudfront distribution to not repeat code. If in the future we need more distributions we only need
+#  to add more values to endpoints     = ["auth", "info", "customers", " ",..]
 
 resource "aws_s3_bucket_policy" "website_bucket_policy" {
   for_each = local.endpoints
@@ -43,6 +49,7 @@ resource "aws_s3_bucket_policy" "website_bucket_policy" {
   EOT
 }
 
+# I upload a test index.html in each origin bucket to test the distribution is working
 resource "aws_s3_object" "object" {
   for_each = local.endpoints
   bucket   = module.s3_bucket[each.key].s3_bucket_id
@@ -66,7 +73,8 @@ module "s3_bucket" {
   versioning = {
     enabled = true
   }
-  force_destroy = true
+  # for the sake of testing and recreating the environments I force the deletion of the bucket. That would be false in a real environment
+  force_destroy = true 
 
   tags = merge(var.default_tags, {
     OWNER = "Satoshi"
@@ -119,6 +127,7 @@ module "cdn" {
   retain_on_delete    = false
   wait_for_deployment = false
 
+# I create an Origin Access Control for each distribution
   create_origin_access_control = true
   origin_access_control = {
     (each.key) = {
@@ -129,6 +138,7 @@ module "cdn" {
     }
   }
 
+# logging to s3 cloudfront_log_bucket bucket created
   logging_config = {
     bucket = module.cloudfront_log_bucket[each.key].s3_bucket_bucket_domain_name
   }
@@ -142,6 +152,8 @@ module "cdn" {
 
   }
   default_root_object = "index.html"
+
+  #only accepts https
   default_cache_behavior = {
     target_origin_id       = "originid"
     viewer_protocol_policy = "redirect-to-https"

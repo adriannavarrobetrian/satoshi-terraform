@@ -4,36 +4,29 @@ This Terraform code deploys a web application infrastructure on AWS across three
 
 ## Solution Structure
 
-I've created 2 versions for this challenge.
+I've created 2 versions for this challenge. 
+Another option to separate environments would be using **terraform workspaces**, but as workspaces uses the same state file for all environments, it's not suitable for production, the blast radius is too big.
 
-## Version 1. Flat structure with environments separated by env folder.
+## Version 1. Flat structure with environments separated by env folder
 
 In this solution all terraform code is in the infrastructure folder. There is a Makefile in there to apply terraform in the environment that we select.
-I use the modules:
+I've used modules to create the buckets for the origin, the Cloudfront distribution and the logging buckets:
 
-https://github.com/terraform-aws-modules/terraform-aws-cloudfront version  = "3.2.1"
+- https://github.com/terraform-aws-modules/terraform-aws-cloudfront version  = "3.2.1"
 
-https://github.com/terraform-aws-modules/terraform-aws-s3-bucket version  = "3.15.1"
-
-to create the buckets for the origin, the distribution and the logging buckets.
-
-They are hardcoded a specific version as expected in production code.
-
-We could download the modules locally and put them in /modules folder too.
+- https://github.com/terraform-aws-modules/terraform-aws-s3-bucket version  = "3.15.1"
 
 
-
-
-The solution is organized into modules, making it modular, maintainable, and reusable. The project structure is as follows:
-
+They are hardcoded to a specific version as expected in production code. We alternately could download the modules locally and put them in a **/modules** folder or in another repository.
 
 ```
 /env
     /dev
-/env
+        variables.tfvars
     /staging
-/env 
+        variables.tfvars
     /prod
+        variables.tfvars
 /infrastructure
     backend.tf
     variables.tf
@@ -45,88 +38,96 @@ The solution is organized into modules, making it modular, maintainable, and reu
     variables.tf
     variables.tfvars
 ```
+Ideally the 3 environment are in separate AWS accounts.
 
-
-```bash
-# Example installation steps
-git clone https://github.com/your-username/your-project.git
-cd your-project
-npm install
+```console
+# Deploy example
+# Login to the (dev|staging|prod) AWS account
+make (dev|staging|prod)
+# Accept changes
 ```
 
-This module defines the S3 bucket configurations for the web application. It includes separate buckets for each environment (dev, staging, prod). The buckets adhere to versioning and server-side encryption standards.
+In addition to **terraform init** and **terraform plan**, the Makefile also uses **terraform fmt** to format the code, [tflint](https://github.com/terraform-linters/tflint) for linting and [tfsec](https://github.com/aquasecurity/tfsec) to check security vulnerabilities.
 
-modules/cloudfront
-This module configures CloudFront distributions for the web application. Each distribution is directed towards its respective S3 bucket and configured for the appropriate paths.
 
-modules/iam
-This module defines customized IAM policies and roles for S3 bucket and CloudFront distribution access. It upholds the principle of least privilege while designing IAM roles.
 
-Usage
+### Bullet points
 
-main.tf
-The main Terraform configuration file references the modules and sets up the environments.
+- terraform.tfstate is configured in a S3 bucket backend named satoshi-terraform-state-${ENV} using Makefile. 
+- Chicken and egg problem: I've created the bucket for the backend manually, configured it as backend, added dynamodb for state locking in terraform code and finally enabled state locking in backend configuration (in Makefile for version 1).
+- All providers have versioning constraints.
+- In a bigger infrastructure, main.tf could be separated in more files, in this case I think it's easier to read with only one file.
+- Variables common for all environments are assigned in **infrastructure/variables.tfvar**, variables that differ per environment are assigned in **env/variables.tfvars**.
+- Buckets are encrypted, private and version enabled.
+- Code is self-explanatory, but I added comments to clarify some decisions.
 
-hcl
-Copy code
-module "s3_dev" {
-  source = "./modules/s3"
-  environment = "dev"
-}
+## Version 2. Different environment in different folders
 
-module "s3_staging" {
-  source = "./modules/s3"
-  environment = "staging"
-}
+In this solution every environment is a different folder, they all access the same modules as the previous version.
 
-module "s3_prod" {
-  source = "./modules/s3"
-  environment = "prod"
-}
+- https://github.com/terraform-aws-modules/terraform-aws-cloudfront version  = "3.2.1"
 
-module "cloudfront_dev" {
-  source = "./modules/cloudfront"
-  environment = "dev"
-  s3_bucket_domain_name = module.s3_dev.s3_bucket_domain_name
-}
+- https://github.com/terraform-aws-modules/terraform-aws-s3-bucket version  = "3.15.1"
 
-module "cloudfront_staging" {
-  source = "./modules/cloudfront"
-  environment = "staging"
-  s3_bucket_domain_name = module.s3_staging.s3_bucket_domain_name
-}
 
-module "cloudfront_prod" {
-  source = "./modules/cloudfront"
-  environment = "prod"
-  s3_bucket_domain_name = module.s3_prod.s3_bucket_domain_name
-}
+They are hardcoded a specific version as expected in production code. We alternately could download the modules locally and put them in **/modules** folder.
 
-module "iam" {
-  source = "./modules/iam"
-  s3_buckets = [
-    module.s3_dev.s3_bucket_name,
-    module.s3_staging.s3_bucket_name,
-    module.s3_prod.s3_bucket_name,
-  ]
-  cloudfront_distributions = [
-    module.cloudfront_dev.cloudfront_distribution_id,
-    module.cloudfront_staging.cloudfront_distribution_id,
-    module.cloudfront_prod.cloudfront_distribution_id,
-  ]
-}
-variables.tf
-The variables file contains input variables used by the modules.
+```
+/infrastructure
+  /dev
+      backend.tf
+      variables.tf
+      dynamodb.tf
+      index.html
+      main.tf
+      outputs.tf
+      variables.tf
+      variables.tfvars
+  /staging
+      backend.tf
+      variables.tf
+      dynamodb.tf
+      index.html
+      main.tf
+      outputs.tf
+      variables.tf
+      variables.tfvars
+  /prod
+      backend.tf
+      variables.tf
+      dynamodb.tf
+      index.html
+      main.tf
+      outputs.tf
+      variables.tf
+      variables.tfvars
+``````
 
-outputs.tf
-The outputs file contains output variables exported by the modules.
+```console
+# Deploy example
+# Login to the (dev|staging|prod) AWS account
+cd ./infrastructure/${ENV}
+terraform init
+terraform fmt && tflint && tfsec && terraform plan -var-file=variables.tfvars 
+terraform apply -var-file=variables.tfvars
+# Accept changes
+```
 
-Run Terraform
+All bullet points for the version 1 are also applicable to this version.
 
-Install Terraform: Follow the official Terraform Installation Guide to install Terraform on your machine.
-Initialize Terraform: Run terraform init in the root directory of the project to initialize Terraform and download the required providers.
-Apply Terraform Changes: Run terraform apply to apply the Terraform configuration and deploy the web application infrastructure on AWS.
+- In this version we have more code duplication than version 1. 
+- On the other hand, it's probably better discernible what code is for each environment. 
+- We could use Terragrunt in this version to avoid so much repetition of code.
 
-##Conclusion
 
-This Terraform solution follows industry best practices for security, scalability, and code structure. It separates concerns into modules, adheres to the principle of least privilege in IAM roles, and parameterizes configurations using variables and outputs.
+
+## Improvements
+
+- We can deploy the infrastructure with a pipeline in GitHub Actions.
+- We could assume a AWS role in each AWS account with the necessary permissions to deploy code in every environment.
+
+
+## Conclusion
+
+This Terraform solution follows industry best practices for security, scalability, and code structure. It separates concerns into modules, adheres to the principle of least privilege in IAM permissions, and parameterizes configurations using variables and outputs.
+

@@ -13,11 +13,11 @@ terraform {
   }
 
   backend "s3" {
-    region  = "eu-west-1"
-    encrypt = true
-    bucket="satoshi-terraform-state-dev"
-    key="terraform.tfstate"
-    dynamodb_table="terraform_state"
+    region         = "eu-west-1"
+    encrypt        = true
+    bucket         = "satoshi-terraform-state-dev"
+    key            = "terraform.tfstate"
+    dynamodb_table = "terraform_state"
   }
 }
 

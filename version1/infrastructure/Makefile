@@ -17,7 +17,7 @@ init:
  			-var-file=../env/${ENV}/variables.tfvars \
  			-backend-config=bucket=satoshi-terraform-state-${ENV} \
  			-backend-config=key=terraform.tfstate \
-			#-backend-config=dynamodb_table="terraform_state" \
+			-backend-config=dynamodb_table="terraform_state" \
  			-backend=true 
 
 plan:
