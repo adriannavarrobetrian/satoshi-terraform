@@ -74,7 +74,7 @@ module "s3_bucket" {
     enabled = true
   }
   # for the sake of testing and recreating the environments I force the deletion of the bucket. That would be false in a real environment
-  force_destroy = true 
+  force_destroy = true
 
   tags = merge(var.default_tags, {
     OWNER = "Satoshi"
@@ -127,7 +127,7 @@ module "cdn" {
   retain_on_delete    = false
   wait_for_deployment = false
 
-# I create an Origin Access Control for each distribution
+  # I create an Origin Access Control for each distribution
   create_origin_access_control = true
   origin_access_control = {
     (each.key) = {
@@ -138,7 +138,7 @@ module "cdn" {
     }
   }
 
-# logging to s3 cloudfront_log_bucket bucket created
+  # logging to s3 cloudfront_log_bucket bucket created
   logging_config = {
     bucket = module.cloudfront_log_bucket[each.key].s3_bucket_bucket_domain_name
   }

@@ -4,10 +4,11 @@ This Terraform code deploys a web application infrastructure on AWS across three
 
 ## Solution Structure
 
-I've created 2 versions for this challenge. 
+I've created 2 options for this challenge. 
 Another option to separate environments would be using **terraform workspaces**, but as workspaces uses the same state file for all environments, it's not suitable for production, the blast radius is too big.
 
-## Version 1. Flat structure with environments separated by env folder
+
+## Option 1. Flat structure with environments separated by env folder
 
 In this solution all terraform code is in the infrastructure folder. There is a Makefile in there to apply terraform in the environment that we select.
 I've used modules to create the buckets for the origin, the Cloudfront distribution and the logging buckets:
@@ -50,27 +51,27 @@ make (dev|staging|prod)
 In addition to **terraform init** and **terraform plan**, the Makefile also uses **terraform fmt** to format the code, [tflint](https://github.com/terraform-linters/tflint) for linting and [tfsec](https://github.com/aquasecurity/tfsec) to check security vulnerabilities.
 
 
-
 ### Bullet points
 
 - terraform.tfstate is configured in a S3 bucket backend named satoshi-terraform-state-${ENV} using Makefile. 
-- Chicken and egg problem: I've created the bucket for the backend manually, configured it as backend, added dynamodb for state locking in terraform code and finally enabled state locking in backend configuration (in Makefile for version 1).
+- Chicken and egg problem: I've created the bucket for the backend manually, configured it as backend, added dynamodb for state locking in terraform code and finally enabled state locking in backend configuration (in Makefile for option 1).
 - All providers have versioning constraints.
 - In a bigger infrastructure, main.tf could be separated in more files, in this case I think it's easier to read with only one file.
 - Variables common for all environments are assigned in **infrastructure/variables.tfvar**, variables that differ per environment are assigned in **env/variables.tfvars**.
 - Buckets are encrypted, private and version enabled.
 - Code is self-explanatory, but I added comments to clarify some decisions.
 
-## Version 2. Different environment in different folders
 
-In this solution every environment is a different folder, they all access the same modules as the previous version.
+## Option 2. Different environments in different folders
+
+In this solution every environment is a different folder, they all access the same modules as option 1.
 
 - https://github.com/terraform-aws-modules/terraform-aws-cloudfront version  = "3.2.1"
 
 - https://github.com/terraform-aws-modules/terraform-aws-s3-bucket version  = "3.15.1"
 
 
-They are hardcoded a specific version as expected in production code. We alternately could download the modules locally and put them in **/modules** folder.
+They are hardcoded to a specific version as expected in production code. We alternatively could download the modules locally and put them in **/modules** folder.
 
 ```
 /infrastructure
@@ -120,10 +121,9 @@ terraform apply -var-file=variables.tfvars
 - In a bigger infrastructure, main.tf could be separated in more files, in this case I think it's easier to read with only one file.
 - Variables are for the folder specific environment.
 - Buckets are encrypted, private and version enabled.
-- In this version we have more code duplication than version 1. 
+- In this option we have more code duplication than option 1. 
 - On the other hand, it's probably better discernible what code is for each environment. 
-- We could use Terragrunt in this version to avoid code repetition.
-
+- We could use Terragrunt to avoid code repetition.
 
 
 ## Improvements
